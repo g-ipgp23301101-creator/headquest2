@@ -1,0 +1,96 @@
+<!doctype html><html lang="ms"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>HEAD QUEST: MISI NEGARAKU</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#fff;background:linear-gradient(135deg,#061b3a,#07517b,#8d173b);min-height:100vh}
+.screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}.card{width:min(1100px,96vw);background:#06172eee;border:2px solid #ffffff35;border-radius:26px;padding:22px;text-align:center;box-shadow:0 15px 45px #0008}
+h1{font-size:clamp(32px,7vw,62px);margin:5px;color:#ffe45c}h2{font-size:clamp(22px,4vw,38px);margin:8px}
+button{padding:15px 24px;border:0;border-radius:16px;background:#ffe45c;color:#071a35;font-size:19px;font-weight:800;margin:8px}
+.info{padding:14px;border-radius:16px;background:#ffffff12;line-height:1.5;margin:12px auto}.top{width:min(1100px,96vw);display:flex;justify-content:space-between;margin:10px auto;gap:8px}.badge{background:#ffffff18;padding:9px 13px;border-radius:12px;font-weight:bold}
+#game{display:none;flex-direction:column}.camera{position:relative;width:min(680px,92vw);margin:auto;background:#000;border-radius:20px;overflow:hidden;border:2px solid #ffffff35}.camera video{width:100%;display:block;transform:scaleX(-1)}canvas{display:none}.status{position:absolute;bottom:10px;left:10px;background:#000b;padding:8px 10px;border-radius:10px;font-size:13px}
+.q{font-size:clamp(21px,4vw,34px);line-height:1.3;margin:18px auto;max-width:900px}.choices{display:grid;grid-template-columns:1fr 1fr;gap:14px}.choice{min-height:135px;border-radius:22px;padding:18px;font-size:clamp(19px,3.5vw,29px);font-weight:800;border:3px solid #ffffff30;display:flex;flex-direction:column;justify-content:center}.left{background:#0d6098}.right{background:#9a1745}.choice.active{border-color:#ffe45c;box-shadow:0 0 24px #ffe45c99;transform:scale(1.02)}.arrow{font-size:38px}.feedback{display:none;margin-top:18px;padding:16px;background:#ffffff12;border-radius:18px;line-height:1.5}.feedback h3{color:#ffe45c;margin:0 0 7px}.small{font-size:13px;opacity:.75}
+</style></head><body>
+<section id="start" class="screen"><div class="card"><div style="font-size:55px">🇲🇾</div><h1>HEAD QUEST</h1><h2>MISI NEGARAKU</h2><p>Gerak Kepala, Pilih Jawapan!</p>
+<div class="info"><b>CARA BERMAIN</b><br>Benarkan kamera mengesan muka. Condongkan kepala ke <b>KIRI</b> atau <b>KANAN</b> untuk memilih jawapan. Jika salah, jawapan tidak akan didedahkan dan peluang diberi kepada murid lain.</div>
+<button onclick="start()">🎥 AKTIFKAN KAMERA & MULA</button><p class="small">Kamera hanya mengesan arah kepala, bukan mengenal pasti identiti murid.</p></div></section>
+<section id="game" class="screen"><div class="top"><div class="badge">🇲🇾 HEAD QUEST</div><div id="count" class="badge"></div><div id="score" class="badge">Skor: 0</div></div>
+<div class="card"><div class="camera"><video id="video" autoplay playsinline muted></video><canvas id="canvas"></canvas><div id="status" class="status">Mengesan kepala...</div></div>
+<div id="q" class="q"></div><div class="choices"><div id="L" class="choice left"><div class="arrow">←</div><div id="lt"></div></div><div id="R" class="choice right"><div class="arrow">→</div><div id="rt"></div></div></div>
+<div id="hint" class="info">Condongkan kepala ke KIRI atau KANAN untuk memilih.</div>
+<div id="feedback" class="feedback"><h3 id="ft"></h3><div id="fe"></div><button id="next" onclick="next()">SOALAN SETERUSNYA →</button></div></div></section>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script>
+const qs=[
+["Jika kamu berada pada tahun 1957, apakah perkara yang berlaku sebelum Lagu Negaraku dipilih?",["Pertandingan mencipta lagu kebangsaan diadakan","Lagu kebangsaan terus dipilih tanpa pertandingan"],"Pertandingan mencipta lagu kebangsaan diadakan sebagai sebahagian daripada proses pemilihan lagu kebangsaan."],
+["Jika kamu menjadi ahli jawatankuasa dan tiada lagu yang sesuai ditemui, apakah pilihan yang dibuat berdasarkan sejarah?",["Mempertimbangkan irama lagu kebesaran negeri Perak","Menggunakan lagu kebesaran negeri lain"],"Apabila tiada lagu yang sesuai dipilih, irama lagu kebesaran negeri Perak dicadangkan sebagai asas."],
+["Kamu sedang menyusun kad sejarah. Apakah peristiwa selepas pertandingan mencipta lagu kebangsaan?",["Tiada lagu yang sesuai dipilih","Lagu Negaraku terus dinyanyikan"],"Selepas pertandingan, tiada lagu yang sesuai dipilih sebelum proses seterusnya dilakukan."],
+["Jika kamu ingin menyebut jumlah penyertaan pertandingan mencipta lagu kebangsaan, berapakah jumlahnya?",["514 penyertaan","415 penyertaan"],"Pertandingan tersebut menerima 514 penyertaan."],
+["Jika kamu diminta memilih irama yang menjadi asas kepada Lagu Negaraku, pilihan manakah yang tepat?",["Irama lagu kebesaran negeri Perak","Irama lagu kebesaran negeri Selangor"],"Irama lagu kebesaran negeri Perak dicadangkan sebagai asas Lagu Negaraku."],
+["Jika kamu berada di Padang Kelab Selangor pada malam tersebut, apakah yang kamu dengar buat pertama kali?",["Lagu Negaraku diperdengarkan","Lagu Negaraku diperdengarkan buat kali terakhir"],"Lagu Negaraku diperdengarkan buat pertama kali pada malam 30 Ogos 1957 di Padang Kelab Selangor."],
+["Jika kamu menerangkan sejarah penciptaan Lagu Negaraku kepada rakan, maklumat manakah yang membantu menerangkan prosesnya?",["Proses pemilihan lagu dan penggunaan irama Perak","Nama peserta pertandingan sahaja"],"Sejarah penciptaan dapat diterangkan melalui proses pemilihan lagu dan penggunaan irama lagu kebesaran negeri Perak."],
+["Kamu sedang berbual apabila Lagu Negaraku dimainkan. Apakah tindakan kamu?",["Berhenti berbual dan berdiri tegak","Terus berbual seperti biasa"],"Apabila Lagu Negaraku dimainkan, kita perlu berhenti berbual dan berdiri tegak sebagai tanda hormat."],
+["Kamu melihat rakan tidak memberi perhatian ketika Lagu Negaraku dimainkan. Apakah tindakan yang wajar?",["Menegur rakan dengan sopan","Membiarkan sahaja"],"Kita boleh menegur rakan dengan sopan supaya bersama-sama menunjukkan rasa hormat."],
+["Kamu diminta menyanyikan Lagu Negaraku dalam majlis rasmi. Bagaimanakah kamu patut menyanyikannya?",["Dengan penuh semangat dan penghayatan","Sambil bergurau dengan rakan"],"Menyanyi dengan penuh semangat dan penghayatan menunjukkan rasa hormat serta kecintaan terhadap negara."],
+["Kamu terlupa sebahagian lirik ketika menyanyi. Apakah tindakan yang sesuai?",["Terus menyanyi dengan penuh hormat sambil cuba mengingati lirik","Berhenti menyanyi dan mula bercakap"],"Walaupun terlupa sebahagian lirik, kita perlu mengekalkan sikap hormat dan cuba meneruskan nyanyian."],
+["Lagu Negaraku dimainkan di tempat awam dan tiada guru. Apakah tindakan kamu?",["Tetap menunjukkan rasa hormat kepada lagu kebangsaan","Tidak perlu melakukan apa-apa"],"Rasa hormat terhadap Lagu Negaraku tidak bergantung pada kehadiran guru."],
+["Selepas mempelajari sejarah Lagu Negaraku, bagaimanakah kamu boleh menunjukkan penghargaan dalam kehidupan seharian?",["Menghayati dan menghormati Lagu Negaraku setiap kali dimainkan","Menghormatinya hanya ketika berada di sekolah"],"Penghayatan perlu diamalkan setiap kali Lagu Negaraku dimainkan, bukan hanya ketika di sekolah."]
+];
+let i=0,score=0,locked=false,stream,mesh,last=null,stable=0;
+const v=document.getElementById("video"),c=document.getElementById("canvas"),ctx=c.getContext("2d");
+async function start(){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:640},height:{ideal:480}},audio:false});v.srcObject=stream;document.getElementById("start").style.display="none";document.getElementById("game").style.display="flex";init();show()}catch(e){alert("Kamera tidak dapat diaktifkan. Pastikan Safari membenarkan kamera dan laman dibuka melalui HTTPS.")}}
+function init(){mesh=new FaceMesh({locateFile:f=>"https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/"+f});mesh.setOptions({maxNumFaces:1,refineLandmarks:false,minDetectionConfidence:.55,minTrackingConfidence:.55});mesh.onResults(res);requestAnimationFrame(scan)}
+async function scan(){if(!locked&&v.readyState>=2){c.width=v.videoWidth;c.height=v.videoHeight;ctx.drawImage(v,0,0,c.width,c.height);await mesh.send({image:c})}requestAnimationFrame(scan)}
+function res(x){
+ if(locked||!x.multiFaceLandmarks?.length){document.getElementById("status").textContent="Pastikan muka berada dalam kamera";return}
+ const m=x.multiFaceLandmarks[0];
+ // Kesan TILT kepala (roll), bukan pusing muka kiri/kanan (yaw).
+ // Titik mata digunakan supaya gerakan kepala benar-benar mengikut kecondongan.
+ const le1=m[33],le2=m[133],re1=m[263],re2=m[362];
+ const lx=(le1.x+le2.x)/2, ly=(le1.y+le2.y)/2;
+ const rx=(re1.x+re2.x)/2, ry=(re1.y+re2.y)/2;
+ let angle=Math.atan2(ry-ly,rx-lx)*180/Math.PI;
+ // Paparan kamera adalah mirror, jadi tanda sudut diterbalikkan untuk padan dengan arah pada skrin.
+ let screenAngle=-angle;
+ // Ambil kira sudut neutral kecil akibat kedudukan kamera.
+ if(!window.neutralAngle) window.neutralAngle=0;
+ const tilt=screenAngle-window.neutralAngle;
+ let dir=null;
+ if(tilt>12) dir="RIGHT";
+ else if(tilt<-12) dir="LEFT";
+ if(dir===last&&dir)stable++;else{last=dir;stable=0}
+ document.getElementById("status").textContent=dir?"Arah kepala: "+dir+" ("+Math.round(Math.abs(tilt))+"°)":"Condongkan kepala ke kiri / kanan";
+ document.getElementById("L").classList.toggle("active",dir==="LEFT");
+ document.getElementById("R").classList.toggle("active",dir==="RIGHT");
+ if(dir&&stable>5)pick(dir);
+}
+function show(){locked=false;last=null;stable=0;window.neutralAngle=0;let x=qs[i];document.getElementById("q").textContent=x[0];document.getElementById("lt").textContent=x[1][0];document.getElementById("rt").textContent=x[1][1];document.getElementById("count").textContent="Soalan "+(i+1)+" / "+qs.length;document.getElementById("score").textContent="Skor: "+score;document.getElementById("feedback").style.display="none";document.getElementById("next").style.display="none";document.getElementById("hint").textContent="Condongkan kepala ke KIRI atau KANAN untuk memilih."}
+function pick(dir){
+ if(locked)return;
+ locked=true;
+ let chosen=dir==="LEFT"?0:1,x=qs[i],ok=chosen===0;
+ document.getElementById("feedback").style.display="block";
+ if(ok){
+   score++;
+   document.getElementById("ft").textContent="✅ Betul!";
+   document.getElementById("fe").innerHTML="<b>Penerangan guru:</b> "+x[2];
+   document.getElementById("next").textContent="SOALAN SETERUSNYA →";
+   document.getElementById("next").onclick=next;
+ }else{
+   document.getElementById("ft").textContent="🔄 Belum tepat — peluang murid lain!";
+   document.getElementById("fe").innerHTML="<b>Jawapan tidak didedahkan.</b><br>Berikan peluang kepada murid lain untuk mencuba soalan yang sama.";
+   document.getElementById("next").textContent="MURID SETERUSNYA →";
+   document.getElementById("next").onclick=retrySame;
+ }
+ document.getElementById("score").textContent="Skor: "+score;
+ document.getElementById("next").style.display="inline-block";
+}
+function retrySame(){
+ document.getElementById("feedback").style.display="none";
+ document.getElementById("next").style.display="none";
+ locked=false;last=null;stable=0;window.neutralAngle=0;
+ document.getElementById("L").classList.remove("active");document.getElementById("R").classList.remove("active");
+ document.getElementById("status").textContent="Murid seterusnya: condongkan kepala ke kiri / kanan";
+}
+function next(){i++;if(i>=qs.length){finish();return}show()}
+function finish(){if(stream)stream.getTracks().forEach(t=>t.stop());document.getElementById("game").innerHTML='<div class="card"><div style="font-size:60px">🏆🇲🇾</div><h1>MISI SELESAI!</h1><h2>HEAD QUEST: MISI NEGARAKU</h2><p style="font-size:27px">Skor: '+score+' / '+qs.length+'</p><p>Syabas! Kamu telah menguji pengetahuan tentang sejarah penciptaan serta cara menghayati dan menjiwai Lagu Negaraku.</p><button onclick="location.reload()">MAIN SEMULA</button></div>'}
+</script></body></html>
